@@ -175,6 +175,7 @@ export class KurveEngine {
     this.winnerId = null;
     this.message = null;
     this.clearArena();
+    this.dropDisconnectedPlayers();
     for (const p of this.players.values()) {
       p.ready = false;
       p.alive = false;
@@ -188,11 +189,18 @@ export class KurveEngine {
     this.phase = "lobby";
     this.message = null;
     this.clearArena();
+    this.dropDisconnectedPlayers();
     for (const p of this.players.values()) {
       p.ready = false;
       p.alive = false;
       p.left = false;
       p.right = false;
+    }
+  }
+
+  private dropDisconnectedPlayers(): void {
+    for (const [id, p] of this.players) {
+      if (!p.socketId) this.players.delete(id);
     }
   }
 
