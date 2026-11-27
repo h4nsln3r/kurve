@@ -113,7 +113,7 @@ Phones on the LAN can use the Vite URL shown in the lobby QR during dev (port **
 | Mode | Steer |
 |------|--------|
 | Desktop | Choose left / right keys per local player |
-| Mobile | On-screen joystick (tilt left / right) |
+| Mobile | Hold on-screen **LEFT** / **RIGHT** pads |
 
 ---
 

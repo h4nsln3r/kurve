@@ -428,40 +428,61 @@ button.ghost {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 42dvh;
+  height: min(34dvh, 220px);
   z-index: 20;
   touch-action: none;
+  user-select: none;
   display: none;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0.65rem;
+  padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.2) 70%, transparent);
 }
 
 .joystick-root.visible {
   display: flex;
 }
 
-.joystick-base {
-  width: min(180px, 42vw);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.22);
-  background: rgba(20, 20, 32, 0.55);
-  position: relative;
-  backdrop-filter: blur(4px);
+.steer-pad {
+  flex: 1;
+  min-width: 0;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  background: rgba(22, 22, 34, 0.72);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  padding: 0;
 }
 
-.joystick-knob {
-  width: 42%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.85);
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+.steer-pad span {
+  font-size: clamp(1.8rem, 8vw, 2.6rem);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.steer-pad small {
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+
+.steer-pad.active {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.7);
+  transform: scale(0.985);
+}
+
+.steer-pad:focus {
+  outline: none;
 }
 
 .hint {

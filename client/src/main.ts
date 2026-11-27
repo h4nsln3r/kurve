@@ -5,6 +5,7 @@ import type { GameSnapshot, KeyBinding, LobbyState, PlayerPublic } from "../../s
 import { Net } from "./net";
 import { ArenaRenderer } from "./render";
 import { VirtualJoystick } from "./joystick";
+import { LocalPredictor } from "./predict";
 import {
   InputManager,
   defaultKeysForIndex,
@@ -80,6 +81,7 @@ const net = new Net({
   },
   onSnapshot: (state) => {
     snapshot = state;
+    predictor.reconcile(state, new Set(myPlayers().map((p) => p.id)));
     if (lobby) {
       lobby = {
         ...lobby,
@@ -102,15 +104,19 @@ const net = new Net({
 
 const input = new InputManager(() => flushInputs());
 const joystick = new VirtualJoystick(() => flushInputs());
+const predictor = new LocalPredictor();
 document.body.appendChild(joystick.root);
 
 const lastSent = new Map<string, string>();
+const localInputs = new Map<string, { left: boolean; right: boolean }>();
 
 function flushInputs(): void {
   const mine = myPlayers();
   input.setPlayers(mine);
+  localInputs.clear();
 
   for (const [playerId, v] of input.sample()) {
+    localInputs.set(playerId, v);
     const key = `${v.left},${v.right}`;
     if (lastSent.get(playerId) === key) continue;
     lastSent.set(playerId, key);
@@ -118,14 +124,16 @@ function flushInputs(): void {
   }
 
   for (const p of mine.filter((x) => x.control === "touch")) {
-    const key = `${joystick.left},${joystick.right}`;
+    const v = { left: joystick.left, right: joystick.right };
+    localInputs.set(p.id, v);
+    const key = `${v.left},${v.right}`;
     if (lastSent.get(p.id) === key) continue;
     lastSent.set(p.id, key);
-    net.send({ type: "input", playerId: p.id, left: joystick.left, right: joystick.right });
+    net.send({ type: "input", playerId: p.id, left: v.left, right: v.right });
   }
 }
 
-setInterval(flushInputs, 50);
+setInterval(flushInputs, 33);
 
 function iAmHost(): boolean {
   return Boolean(lobby && mySocketId && lobby.hostSocketId === mySocketId);
@@ -205,7 +213,7 @@ function renderLobby(): void {
             </div>
             ${
               touch
-                ? `<p class="hint">Touch device detected — you'll steer with an on-screen joystick.</p>`
+                ? `<p class="hint">Touch device detected — hold LEFT / RIGHT pads to steer (same as keyboard).</p>`
                 : `<div class="field">
                     <label>Keys (left / right)</label>
                     <div class="keys-capture">
@@ -292,7 +300,7 @@ function renderLobby(): void {
         <div class="swatch" style="background:${p.colorHex}"></div>
         <div class="meta">
           <strong>${escapeHtml(p.name)}</strong>
-          <span>${p.control === "touch" ? "Joystick" : `Keys ${prettyKey(p.keys?.left || "?")} / ${prettyKey(p.keys?.right || "?")}`} · score ${p.score}</span>
+          <span>${p.control === "touch" ? "Touch pads" : `Keys ${prettyKey(p.keys?.left || "?")} / ${prettyKey(p.keys?.right || "?")}`} · score ${p.score}</span>
         </div>
         <div class="row">
           <span class="${p.ready ? "ready-yes" : "ready-no"}">${p.ready ? "Ready" : "Not ready"}</span>
@@ -465,7 +473,12 @@ function paintScores(): void {
 
 function paintArena(): void {
   if (!snapshot || !renderer) return;
-  renderer.draw(snapshot);
+  const owned = new Set(myPlayers().map((p) => p.id));
+  const drawState =
+    snapshot.phase === "playing"
+      ? { ...snapshot, players: predictor.apply(snapshot, owned, localInputs) }
+      : snapshot;
+  renderer.draw(drawState);
   if (overlayEl) {
     if (snapshot.phase === "countdown") overlayEl.textContent = String(snapshot.countdown || "Go");
     else if (snapshot.message) overlayEl.textContent = snapshot.message;
@@ -474,6 +487,15 @@ function paintArena(): void {
   const mine = myPlayers();
   joystick.setVisible(mine.some((p) => p.control === "touch") && snapshot.phase !== "matchEnd");
 }
+
+/** Smooth local head between network snapshots */
+function predictionLoop(): void {
+  if (snapshot?.phase === "playing" && renderer && myPlayers().some((p) => p.control === "touch" || p.control === "keyboard")) {
+    paintArena();
+  }
+  requestAnimationFrame(predictionLoop);
+}
+requestAnimationFrame(predictionLoop);
 
 window.addEventListener("keydown", (e) => {
   if (!capturing) return;

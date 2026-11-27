@@ -15,7 +15,7 @@ export class Net {
 
   constructor(private handlers: Handlers) {
     this.socket = io({
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
       autoConnect: true,
     });
 
@@ -41,6 +41,11 @@ export class Net {
   }
 
   send(msg: ClientToServer): void {
+    // Latest turn input matters more than queued older ones on slow Wi‑Fi
+    if (msg.type === "input") {
+      this.socket.volatile.emit("message", msg);
+      return;
+    }
     this.socket.emit("message", msg);
   }
 }

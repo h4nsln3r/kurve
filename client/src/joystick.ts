@@ -1,9 +1,13 @@
+/**
+ * Classic Achtung-style mobile steering: hold LEFT / RIGHT.
+ * (A free stick feels wrong because the game only has binary turn.)
+ */
 export class VirtualJoystick {
   readonly root: HTMLDivElement;
-  private base: HTMLDivElement;
-  private knob: HTMLDivElement;
-  private active = false;
-  private pointerId: number | null = null;
+  private leftBtn: HTMLButtonElement;
+  private rightBtn: HTMLButtonElement;
+  private leftPointers = new Set<number>();
+  private rightPointers = new Set<number>();
   left = false;
   right = false;
   private onChange: () => void;
@@ -13,70 +17,88 @@ export class VirtualJoystick {
     this.root = document.createElement("div");
     this.root.className = "joystick-root";
     this.root.innerHTML = `
-      <div class="joystick-base">
-        <div class="joystick-knob"></div>
-      </div>
+      <button type="button" class="steer-pad steer-left" aria-label="Turn left">
+        <span>◀</span>
+        <small>LEFT</small>
+      </button>
+      <button type="button" class="steer-pad steer-right" aria-label="Turn right">
+        <span>▶</span>
+        <small>RIGHT</small>
+      </button>
     `;
-    this.base = this.root.querySelector(".joystick-base")!;
-    this.knob = this.root.querySelector(".joystick-knob")!;
+    this.leftBtn = this.root.querySelector(".steer-left")!;
+    this.rightBtn = this.root.querySelector(".steer-right")!;
 
-    this.root.addEventListener("pointerdown", (e) => this.down(e));
-    this.root.addEventListener("pointermove", (e) => this.move(e));
-    this.root.addEventListener("pointerup", (e) => this.up(e));
-    this.root.addEventListener("pointercancel", (e) => this.up(e));
+    this.bindPad(this.leftBtn, "left");
+    this.bindPad(this.rightBtn, "right");
+
+    // Extra: tap anywhere on the left/right half of the control bar
+    this.root.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (e.target !== this.root) return;
+        e.preventDefault();
+        const rect = this.root.getBoundingClientRect();
+        const side = e.clientX < rect.left + rect.width / 2 ? "left" : "right";
+        this.press(side, e.pointerId, this.root);
+      },
+      { passive: false },
+    );
   }
 
   setVisible(v: boolean): void {
     this.root.classList.toggle("visible", v);
-    if (!v) this.reset();
+    if (!v) this.clearAll();
   }
 
-  private down(e: PointerEvent): void {
-    if (this.pointerId !== null) return;
-    this.pointerId = e.pointerId;
-    this.root.setPointerCapture(e.pointerId);
-    this.active = true;
-    this.move(e);
+  private bindPad(el: HTMLElement, side: "left" | "right"): void {
+    el.addEventListener(
+      "pointerdown",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.press(side, e.pointerId, el);
+      },
+      { passive: false },
+    );
   }
 
-  private move(e: PointerEvent): void {
-    if (!this.active || e.pointerId !== this.pointerId) return;
-    const rect = this.base.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    let dx = e.clientX - cx;
-    let dy = e.clientY - cy;
-    const max = rect.width * 0.32;
-    const len = Math.hypot(dx, dy) || 1;
-    if (len > max) {
-      dx = (dx / len) * max;
-      dy = (dy / len) * max;
+  private press(side: "left" | "right", pointerId: number, el: HTMLElement): void {
+    const set = side === "left" ? this.leftPointers : this.rightPointers;
+    if (set.has(pointerId)) return;
+    set.add(pointerId);
+    try {
+      el.setPointerCapture(pointerId);
+    } catch {
+      /* ignore */
     }
-    this.knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    this.sync();
 
-    const dead = max * 0.22;
-    const nextLeft = dx < -dead;
-    const nextRight = dx > dead;
-    if (nextLeft !== this.left || nextRight !== this.right) {
-      this.left = nextLeft;
-      this.right = nextRight;
-      this.onChange();
-    }
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId) return;
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      set.delete(pointerId);
+      this.sync();
+    };
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   }
 
-  private up(e: PointerEvent): void {
-    if (e.pointerId !== this.pointerId) return;
-    this.pointerId = null;
-    this.active = false;
-    this.reset();
+  private sync(): void {
+    const nextLeft = this.leftPointers.size > 0;
+    const nextRight = this.rightPointers.size > 0;
+    const changed = nextLeft !== this.left || nextRight !== this.right;
+    this.left = nextLeft;
+    this.right = nextRight;
+    this.leftBtn.classList.toggle("active", this.left);
+    this.rightBtn.classList.toggle("active", this.right);
+    if (changed) this.onChange();
   }
 
-  private reset(): void {
-    this.knob.style.transform = "translate(-50%, -50%)";
-    if (this.left || this.right) {
-      this.left = false;
-      this.right = false;
-      this.onChange();
-    }
+  private clearAll(): void {
+    this.leftPointers.clear();
+    this.rightPointers.clear();
+    this.sync();
   }
 }

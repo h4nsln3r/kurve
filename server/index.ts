@@ -220,13 +220,18 @@ function handleMessage(socketId: string, localHost: boolean, msg: ClientToServer
 }
 
 const tickDt = 1 / TICK_RATE;
+/** Simulate 60Hz, broadcast ~20Hz so mobile Wi‑Fi isn't flooded with trail data. */
+const BROADCAST_EVERY_TICKS = 3;
+let tickCount = 0;
 setInterval(() => {
   const before = engine.phase;
   engine.update(tickDt);
-  if (engine.phase !== "lobby") {
+  tickCount++;
+  const phaseChanged = before !== engine.phase;
+  if (engine.phase !== "lobby" && (phaseChanged || tickCount % BROADCAST_EVERY_TICKS === 0)) {
     emitSnapshot();
   }
-  if (before !== engine.phase) {
+  if (phaseChanged) {
     emitLobby();
   }
 }, 1000 / TICK_RATE);
