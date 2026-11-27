@@ -33,9 +33,13 @@ export interface TrailSegment {
 }
 
 export interface NetworkInfo {
+  /** Socket/API server port (always 3847) */
   port: number;
+  /** Port guests should open in the browser (5173 in dev, 3847 in production) */
+  joinPort: number;
   urls: string[];
   preferredUrl: string | null;
+  mode: "development" | "production";
 }
 
 export interface LobbyState {

@@ -321,17 +321,18 @@ function renderLobby(): void {
   const preferred =
     state.network.preferredUrl ||
     state.network.urls[0] ||
-    `${location.protocol}//${location.hostname}:${state.network.port}`;
+    `${location.protocol}//${location.hostname}:${state.network.joinPort || state.network.port}`;
   const links = app.querySelector("#links")!;
   const urls = state.network.urls.length ? state.network.urls : [preferred];
-  links.innerHTML = urls.map((u) => `<a href="${u}" target="_blank" rel="noreferrer">${u}</a>`).join("");
+  const modeNote =
+    state.network.mode === "development"
+      ? `<p class="hint">Dev mode: guests must open port <strong>${state.network.joinPort}</strong> (Vite), not ${state.network.port}.</p>`
+      : "";
+  links.innerHTML =
+    modeNote + urls.map((u) => `<a href="${u}" target="_blank" rel="noreferrer">${u}</a>`).join("");
 
-  // Invite link should be reachable from phones on Wi‑Fi (not localhost).
-  // In Vite dev, rewrite the party port to the Vite port.
-  const qrTarget =
-    location.port === "5173" && preferred
-      ? preferred.replace(`:${state.network.port}`, ":5173")
-      : preferred;
+  // Prefer LAN join URL from the server (already uses 5173 in dev / 3847 in prod).
+  const qrTarget = preferred;
   const qr = app.querySelector<HTMLCanvasElement>("#qr")!;
   void paintQr(qrTarget, qr);
 

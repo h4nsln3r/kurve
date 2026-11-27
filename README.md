@@ -99,12 +99,22 @@ npm install
 npm run dev
 ```
 
-| Service | URL |
-|---------|-----|
-| Client (UI) | http://localhost:5173 |
-| API / sockets | http://localhost:3847 |
+| Who | URL |
+|-----|-----|
+| Host PC | http://127.0.0.1:5173 |
+| Phones / other PCs | http://\<LAN-IP\>:5173 (shown in lobby + QR) |
+| API only | port 3847 (not the game UI in dev) |
 
-Phones on the LAN can use the Vite URL shown in the lobby QR during dev (port **5173**). For real parties, prefer **`npm run build && npm start`** (single port **3847**).
+Opening `:3847` in the browser during `npm run dev` redirects to `:5173`.
+
+For real parties, prefer a single port:
+
+```bash
+npm run build
+npm start
+```
+
+Then everyone (including phones) uses **http://\<LAN-IP\>:3847**.
 
 ---
 

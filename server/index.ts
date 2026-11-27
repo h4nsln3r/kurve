@@ -68,13 +68,23 @@ if (isProd) {
     res.sendFile(path.join(dist, "index.html"));
   });
 } else {
-  app.get("/", (_req, res) => {
-    res.type("html").send(`<!doctype html>
-<html><body style="font-family:sans-serif;background:#0b0b12;color:#eee;padding:2rem">
-<h1>Kurve server running</h1>
-<p>Open the Vite client at <a href="http://localhost:5173" style="color:#7cf">http://localhost:5173</a></p>
-<p>LAN guests should use the Vite URL with your LAN IP once you expose it, or run <code>npm run build && npm start</code> for a single party port.</p>
-</body></html>`);
+  // In npm run dev the UI lives on Vite (:5173). Redirect phones that open :3847.
+  app.get(["/", "/index.html"], (req, res) => {
+    refreshNetwork();
+    const host = req.hostname || "127.0.0.1";
+    const isLocal = host === "localhost" || host === "127.0.0.1";
+    const target = isLocal
+      ? "http://127.0.0.1:5173/"
+      : `http://${host}:5173/`;
+    res.redirect(302, target);
+  });
+
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api") || req.path.startsWith("/socket.io")) return next();
+    refreshNetwork();
+    const host = req.hostname || "127.0.0.1";
+    const isLocal = host === "localhost" || host === "127.0.0.1";
+    res.redirect(302, isLocal ? "http://127.0.0.1:5173/" : `http://${host}:5173/`);
   });
 }
 
@@ -243,19 +253,24 @@ httpServer.listen(PORT, "0.0.0.0", () => {
   console.log("  ║              KURVE SERVER            ║");
   console.log("  ╚══════════════════════════════════════╝");
   console.log("");
-  console.log(`  Local:   http://localhost:${PORT}`);
-  if (network.urls.length) {
-    for (const url of network.urls) {
-      console.log(`  LAN:     ${url}`);
+  if (isProd) {
+    console.log(`  Local:   http://localhost:${PORT}`);
+    if (network.urls.length) {
+      for (const url of network.urls) console.log(`  LAN:     ${url}`);
+    } else {
+      console.log("  LAN:     (no IPv4 address found)");
     }
   } else {
-    console.log("  LAN:     (no IPv4 address found)");
-  }
-  if (!isProd) {
-    console.log(`  Client:  http://localhost:5173  (dev)`);
+    console.log(`  Host UI: http://127.0.0.1:5173`);
+    console.log(`  API:     http://127.0.0.1:${PORT}`);
+    if (network.urls.length) {
+      for (const url of network.urls) console.log(`  LAN UI:  ${url}`);
+    } else {
+      console.log("  LAN UI:  (no IPv4 address found)");
+    }
+    console.log("  (dev mode — phones must open the LAN UI port, not :3847)");
   }
   console.log("");
-  console.log("  Open Local on this PC for host controls.");
-  console.log("  Friends join via a LAN URL on the same Wi‑Fi.");
+  console.log("  Open the host UI on this PC. Friends join via LAN UI on the same Wi‑Fi.");
   console.log("");
 });
