@@ -18,16 +18,24 @@ export class VirtualJoystick {
     this.root.className = "joystick-root";
     this.root.innerHTML = `
       <button type="button" class="steer-pad steer-left" aria-label="Turn left">
-        <span>◀</span>
-        <small>LEFT</small>
+        <span aria-hidden="true">◀</span>
+        <small aria-hidden="true">LEFT</small>
       </button>
       <button type="button" class="steer-pad steer-right" aria-label="Turn right">
-        <span>▶</span>
-        <small>RIGHT</small>
+        <span aria-hidden="true">▶</span>
+        <small aria-hidden="true">RIGHT</small>
       </button>
     `;
     this.leftBtn = this.root.querySelector(".steer-left")!;
     this.rightBtn = this.root.querySelector(".steer-right")!;
+
+    // Kill iOS/Android long-press "Copy" / callout menus on the pads
+    const blockBrowserChrome = (e: Event) => {
+      e.preventDefault();
+    };
+    this.root.addEventListener("contextmenu", blockBrowserChrome);
+    this.root.addEventListener("selectstart", blockBrowserChrome);
+    this.root.addEventListener("dragstart", blockBrowserChrome);
 
     this.bindPad(this.leftBtn, "left");
     this.bindPad(this.rightBtn, "right");
@@ -48,6 +56,7 @@ export class VirtualJoystick {
 
   setVisible(v: boolean): void {
     this.root.classList.toggle("visible", v);
+    document.documentElement.classList.toggle("kurve-touch-play", v);
     if (!v) this.clearAll();
   }
 

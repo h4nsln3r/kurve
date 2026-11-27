@@ -18,6 +18,24 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.joystick-root,
+.joystick-root * {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* While touch pads are up, reduce selection/callouts over the play area */
+html.kurve-touch-play,
+html.kurve-touch-play body,
+html.kurve-touch-play canvas,
+html.kurve-touch-play .arena-wrap {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  overscroll-behavior: none;
+}
+
 html,
 body {
   margin: 0;
@@ -432,6 +450,9 @@ button.ghost {
   z-index: 20;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
   display: none;
   align-items: stretch;
   justify-content: stretch;
@@ -458,6 +479,8 @@ button.ghost {
   gap: 0.35rem;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
   touch-action: none;
   padding: 0;
 }
