@@ -24,6 +24,9 @@ export interface PlayerPublic {
   y?: number;
   angle?: number;
   drawing?: boolean;
+  /** Server-known turn input (for client prediction reconcile) */
+  left?: boolean;
+  right?: boolean;
 }
 
 export interface TrailSegment {
@@ -31,6 +34,7 @@ export interface TrailSegment {
   colorHex: string;
   points: Array<{ x: number; y: number }>;
 }
+
 
 export interface NetworkInfo {
   /** Socket/API server port (always 3847) */
@@ -81,5 +85,5 @@ export type ClientToServer =
 export type ServerToClient =
   | { type: "welcome"; socketId: string; isLocalHost: boolean; state: LobbyState }
   | { type: "lobby"; state: LobbyState }
-  | { type: "snapshot"; state: GameSnapshot }
+  | { type: "snapshot"; state: GameSnapshot; trailMode?: "full" | "delta" | "none" }
   | { type: "error"; message: string };

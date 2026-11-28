@@ -55,31 +55,42 @@ const net = new Net({
   },
   onLobby: (state) => {
     lobby = state;
-    if (
-      state.phase === "countdown" ||
-      state.phase === "playing" ||
-      state.phase === "roundEnd" ||
-      state.phase === "matchEnd"
-    ) {
-      if (!snapshot) snapshot = {
-        phase: state.phase,
-        players: state.players,
-        trails: [],
-        winScore: state.winScore,
-        round: state.round,
-        countdown: state.countdown,
-        winnerId: state.winnerId,
-        message: null,
-        arena: { width: 900, height: 700 },
-      };
+    if (inGamePhase(state.phase)) {
+      if (!snapshot) {
+        snapshot = {
+          phase: state.phase,
+          players: state.players,
+          trails: [],
+          winScore: state.winScore,
+          round: state.round,
+          countdown: state.countdown,
+          winnerId: state.winnerId,
+          message: null,
+          arena: { width: 900, height: 700 },
+        };
+      } else {
+        snapshot = {
+          ...snapshot,
+          phase: state.phase,
+          players: state.players,
+          winScore: state.winScore,
+          round: state.round,
+          countdown: state.countdown,
+          winnerId: state.winnerId,
+        };
+      }
+      // Don't rebuild the whole game shell on every lobby tick — that wiped the trail canvas
+      if (gameCanvas && renderer && app.querySelector("#arena")) renderGameFrame();
+      else renderGameShell();
     } else {
       snapshot = null;
       gameCanvas = null;
       renderer = null;
+      renderLobby();
     }
-    render();
   },
   onSnapshot: (state) => {
+    if (snapshot && snapshot.round !== state.round) predictor.reset();
     snapshot = state;
     predictor.reconcile(state, new Set(myPlayers().map((p) => p.id)));
     if (lobby) {
@@ -109,31 +120,36 @@ document.body.appendChild(joystick.root);
 
 const lastSent = new Map<string, string>();
 const localInputs = new Map<string, { left: boolean; right: boolean }>();
+/** Force-resend held turn state so a rare drop can't leave steering stuck. */
+let inputKeepalive = 0;
 
-function flushInputs(): void {
+function flushInputs(force = false): void {
   const mine = myPlayers();
   input.setPlayers(mine);
   localInputs.clear();
 
-  for (const [playerId, v] of input.sample()) {
+  const send = (playerId: string, v: { left: boolean; right: boolean }) => {
     localInputs.set(playerId, v);
     const key = `${v.left},${v.right}`;
-    if (lastSent.get(playerId) === key) continue;
+    if (!force && lastSent.get(playerId) === key) return;
     lastSent.set(playerId, key);
     net.send({ type: "input", playerId, left: v.left, right: v.right });
+  };
+
+  for (const [playerId, v] of input.sample()) {
+    send(playerId, v);
   }
 
   for (const p of mine.filter((x) => x.control === "touch")) {
-    const v = { left: joystick.left, right: joystick.right };
-    localInputs.set(p.id, v);
-    const key = `${v.left},${v.right}`;
-    if (lastSent.get(p.id) === key) continue;
-    lastSent.set(p.id, key);
-    net.send({ type: "input", playerId: p.id, left: v.left, right: v.right });
+    send(p.id, { left: joystick.left, right: joystick.right });
   }
 }
 
-setInterval(flushInputs, 33);
+setInterval(() => {
+  inputKeepalive++;
+  // Immediate on change via InputManager/joystick; keepalive ~every 99ms
+  flushInputs(inputKeepalive % 3 === 0);
+}, 33);
 
 function iAmHost(): boolean {
   return Boolean(lobby && mySocketId && lobby.hostSocketId === mySocketId);
@@ -436,6 +452,8 @@ function renderGameShell(): void {
   app.querySelector("#back-lobby")?.addEventListener("click", () => net.send({ type: "host_back_lobby" }));
   app.querySelector("#rematch")?.addEventListener("click", () => net.send({ type: "host_reset_match" }));
 
+  lastJoystickVisible = needJoystick;
+  lastScoreSig = "";
   joystick.setVisible(needJoystick);
   paintArena();
 }
@@ -460,6 +478,9 @@ function paintScores(): void {
   const scores = app.querySelector("#scores");
   if (!scores || !snapshot) return;
   const sorted = [...snapshot.players].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  const sig = sorted.map((p) => `${p.id}:${p.score}:${p.alive ? 1 : 0}:${snapshot!.phase}`).join("|");
+  if (sig === lastScoreSig && scores.childElementCount) return;
+  lastScoreSig = sig;
   scores.innerHTML = sorted
     .map(
       (p) => `
@@ -472,26 +493,37 @@ function paintScores(): void {
     .join("");
 }
 
+let lastJoystickVisible: boolean | null = null;
+let lastScoreSig = "";
+
 function paintArena(): void {
   if (!snapshot || !renderer) return;
   const owned = new Set(myPlayers().map((p) => p.id));
   const drawState =
-    snapshot.phase === "playing"
+    snapshot.phase === "playing" || snapshot.phase === "countdown"
       ? { ...snapshot, players: predictor.apply(snapshot, owned, localInputs) }
       : snapshot;
-  renderer.draw(drawState);
+
+  renderer.draw(drawState, predictor.getLocalTrails());
   if (overlayEl) {
     if (snapshot.phase === "countdown") overlayEl.textContent = String(snapshot.countdown || "Go");
     else if (snapshot.message) overlayEl.textContent = snapshot.message;
     else overlayEl.textContent = "";
   }
   const mine = myPlayers();
-  joystick.setVisible(mine.some((p) => p.control === "touch") && snapshot.phase !== "matchEnd");
+  const wantJoystick = mine.some((p) => p.control === "touch") && snapshot.phase !== "matchEnd";
+  if (lastJoystickVisible !== wantJoystick) {
+    lastJoystickVisible = wantJoystick;
+    joystick.setVisible(wantJoystick);
+  }
 }
 
-/** Smooth local head between network snapshots */
+/** Smooth local + remote heads between network snapshots */
 function predictionLoop(): void {
-  if (snapshot?.phase === "playing" && renderer && myPlayers().some((p) => p.control === "touch" || p.control === "keyboard")) {
+  if (
+    (snapshot?.phase === "playing" || snapshot?.phase === "countdown") &&
+    renderer
+  ) {
     paintArena();
   }
   requestAnimationFrame(predictionLoop);

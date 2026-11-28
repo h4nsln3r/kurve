@@ -424,7 +424,11 @@ export class KurveEngine {
       trails: this.trailSegments.map((s) => ({
         playerId: s.playerId,
         colorHex: s.colorHex,
-        points: s.points,
+        // Round for slightly smaller JSON on mobile Wi‑Fi
+        points: s.points.map((pt) => ({
+          x: Math.round(pt.x * 10) / 10,
+          y: Math.round(pt.y * 10) / 10,
+        })),
       })),
       winScore: this.winScore,
       round: this.round,
@@ -454,6 +458,8 @@ export class KurveEngine {
       base.y = p.y;
       base.angle = p.angle;
       base.drawing = p.drawing;
+      base.left = p.left;
+      base.right = p.right;
     }
     return base;
   }

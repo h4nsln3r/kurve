@@ -1,7 +1,8 @@
 export const PORT = 3847;
 export const MAX_PLAYERS = 8;
 export const TICK_RATE = 60;
-export const BROADCAST_EVERY = 1; // every tick
+/** @deprecated rates live in server/index.ts (pose vs trail cadence) */
+export const BROADCAST_EVERY = 2;
 
 export const ARENA_WIDTH = 900;
 export const ARENA_HEIGHT = 700;

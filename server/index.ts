@@ -44,7 +44,11 @@ function emitLobby(): void {
 }
 
 function emitSnapshot(): void {
-  io.emit("message", { type: "snapshot", state: engine.snapshot() });
+  io.emit("message", {
+    type: "snapshot",
+    state: engine.snapshot(),
+    trailMode: "full",
+  });
 }
 
 function isLoopback(ip: string | undefined): boolean {
@@ -230,19 +234,28 @@ function handleMessage(socketId: string, localHost: boolean, msg: ClientToServer
 }
 
 const tickDt = 1 / TICK_RATE;
-/** Simulate 60Hz, broadcast ~20Hz so mobile Wi‑Fi isn't flooded with trail data. */
-const BROADCAST_EVERY_TICKS = 3;
+/** ~30Hz full snapshots — trails must stay visible on mobile Wi‑Fi. */
+const BROADCAST_EVERY_TICKS = 2;
 let tickCount = 0;
+let simAccum = 0;
+let simLast = performance.now();
 setInterval(() => {
-  const before = engine.phase;
-  engine.update(tickDt);
-  tickCount++;
-  const phaseChanged = before !== engine.phase;
-  if (engine.phase !== "lobby" && (phaseChanged || tickCount % BROADCAST_EVERY_TICKS === 0)) {
-    emitSnapshot();
-  }
-  if (phaseChanged) {
-    emitLobby();
+  const now = performance.now();
+  simAccum += Math.min(0.05, (now - simLast) / 1000);
+  simLast = now;
+
+  let steps = 0;
+  while (simAccum >= tickDt && steps < 4) {
+    const before = engine.phase;
+    engine.update(tickDt);
+    simAccum -= tickDt;
+    tickCount++;
+    steps++;
+    const phaseChanged = before !== engine.phase;
+    if (engine.phase !== "lobby" && (phaseChanged || tickCount % BROADCAST_EVERY_TICKS === 0)) {
+      emitSnapshot();
+    }
+    if (phaseChanged) emitLobby();
   }
 }, 1000 / TICK_RATE);
 

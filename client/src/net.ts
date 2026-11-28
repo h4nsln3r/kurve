@@ -41,11 +41,7 @@ export class Net {
   }
 
   send(msg: ClientToServer): void {
-    // Latest turn input matters more than queued older ones on slow Wi‑Fi
-    if (msg.type === "input") {
-      this.socket.volatile.emit("message", msg);
-      return;
-    }
+    // Reliable delivery — dropped turn edges feel like sticky/laggy steering on Wi‑Fi
     this.socket.emit("message", msg);
   }
 }
