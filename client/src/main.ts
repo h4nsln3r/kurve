@@ -86,6 +86,10 @@ const net = new Net({
       snapshot = null;
       gameCanvas = null;
       renderer = null;
+      steerChoice.hidden = true;
+      steerMode = null;
+      document.documentElement.classList.remove("kurve-landscape");
+      joystick.setVisible(false);
       renderLobby();
     }
   },
@@ -117,6 +121,52 @@ const input = new InputManager(() => flushInputs());
 const joystick = new VirtualJoystick(() => flushInputs());
 const predictor = new LocalPredictor();
 document.body.appendChild(joystick.root);
+
+type SteerMode = "portrait" | "landscape";
+let steerMode: SteerMode | null = null;
+
+const steerChoice = document.createElement("div");
+steerChoice.className = "steer-choice";
+steerChoice.hidden = true;
+steerChoice.innerHTML = `
+  <div class="steer-choice-card">
+    <h2>Hur vill du styra?</h2>
+    <p>Liggande: tryck vänster eller höger sida av skärmen. Stående: knappar längst ner.</p>
+    <button type="button" id="steer-landscape">Liggande</button>
+    <button type="button" id="steer-portrait">Stående</button>
+  </div>
+`;
+document.body.appendChild(steerChoice);
+
+function applySteerMode(mode: SteerMode): void {
+  steerMode = mode;
+  joystick.setMode(mode);
+  steerChoice.hidden = true;
+  document.documentElement.classList.toggle("kurve-landscape", mode === "landscape");
+  const mine = myPlayers();
+  const playing = lobby && inGamePhase(lobby.phase);
+  joystick.setVisible(Boolean(playing && mine.some((p) => p.control === "touch")));
+  void tryLockOrientation(mode);
+}
+
+steerChoice.querySelector("#steer-landscape")?.addEventListener("click", () => applySteerMode("landscape"));
+steerChoice.querySelector("#steer-portrait")?.addEventListener("click", () => applySteerMode("portrait"));
+
+async function tryLockOrientation(mode: SteerMode): Promise<void> {
+  try {
+    const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+    if (!orientation?.lock) return;
+    await orientation.lock(mode === "landscape" ? "landscape" : "portrait");
+  } catch {
+    /* iOS and many browsers block this without a fullscreen gesture */
+  }
+}
+
+function promptSteerChoice(): void {
+  steerMode = null;
+  joystick.setVisible(false);
+  steerChoice.hidden = false;
+}
 
 const lastSent = new Map<string, string>();
 const localInputs = new Map<string, { left: boolean; right: boolean }>();
@@ -229,7 +279,7 @@ function renderLobby(): void {
             </div>
             ${
               touch
-                ? `<p class="hint">Touch device detected — hold LEFT / RIGHT pads to steer (same as keyboard).</p>`
+                ? `<p class="hint">På mobilen väljer du liggande eller stående när matchen startar.</p>`
                 : `<div class="field">
                     <label>Keys (left / right)</label>
                     <div class="keys-capture">
@@ -452,9 +502,10 @@ function renderGameShell(): void {
   app.querySelector("#back-lobby")?.addEventListener("click", () => net.send({ type: "host_back_lobby" }));
   app.querySelector("#rematch")?.addEventListener("click", () => net.send({ type: "host_reset_match" }));
 
-  lastJoystickVisible = needJoystick;
+  lastJoystickVisible = false;
   lastScoreSig = "";
-  joystick.setVisible(needJoystick);
+  if (needJoystick && isTouchDevice()) promptSteerChoice();
+  else joystick.setVisible(false);
   paintArena();
 }
 
@@ -511,7 +562,10 @@ function paintArena(): void {
     else overlayEl.textContent = "";
   }
   const mine = myPlayers();
-  const wantJoystick = mine.some((p) => p.control === "touch") && snapshot.phase !== "matchEnd";
+  const wantJoystick =
+    steerMode !== null &&
+    mine.some((p) => p.control === "touch") &&
+    snapshot.phase !== "matchEnd";
   if (lastJoystickVisible !== wantJoystick) {
     lastJoystickVisible = wantJoystick;
     joystick.setVisible(wantJoystick);

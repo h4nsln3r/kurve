@@ -106,29 +106,14 @@ export class ArenaRenderer {
       }
       if (!serverTip) continue;
 
-      const seg = trail.segments[trail.segments.length - 1];
-      let ahead: Pt[] = [];
-      if (seg?.length) {
-        let nearest = 0;
-        let best = Infinity;
-        for (let i = 0; i < seg.length; i++) {
-          const d = Math.hypot(seg[i]!.x - serverTip.x, seg[i]!.y - serverTip.y);
-          if (d < best) {
-            best = d;
-            nearest = i;
-          }
-        }
-        ahead = seg.slice(nearest + 1);
-      }
-
       ctx.strokeStyle = trail.colorHex || p.colorHex;
       ctx.lineWidth = TRAIL_WIDTH;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
       ctx.moveTo(serverTip.x, serverTip.y);
-      for (const pt of ahead.slice(-24)) ctx.lineTo(pt.x, pt.y);
-      if (Math.hypot(p.x - serverTip.x, p.y - serverTip.y) > 0.3) ctx.lineTo(p.x, p.y);
+      const dist = Math.hypot(p.x - serverTip.x, p.y - serverTip.y);
+      if (dist > 0.3 && dist < 18) ctx.lineTo(p.x, p.y);
       ctx.stroke();
     }
   }

@@ -54,6 +54,13 @@ export class VirtualJoystick {
     );
   }
 
+  /** Portrait = small pads. Landscape = left/right half of the screen. */
+  setMode(mode: "portrait" | "landscape"): void {
+    this.root.classList.toggle("mode-portrait", mode === "portrait");
+    this.root.classList.toggle("mode-landscape", mode === "landscape");
+    this.clearAll();
+  }
+
   setVisible(v: boolean): void {
     this.root.classList.toggle("visible", v);
     document.documentElement.classList.toggle("kurve-touch-play", v);
